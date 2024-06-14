@@ -11,19 +11,28 @@ interval=0
 cpu() {
   cpu_val=$(grep -o "^[^ ]*" /proc/loadavg)
 
+  # Find the correct thermal zone for CPU temperature
+  for zone in /sys/class/thermal/thermal_zone*/; do
+    type=$(cat "${zone}type")
+    if [ "$type" = "x86_pkg_temp" ]; then
+      temp=$(cat "${zone}temp")
+      temp=$((temp / 1000))  # Convert millidegrees to degrees
+      break
+    fi
+  done
+
   printf "^c$black^ ^b$green^ CPU"
   printf "^c$white^ ^b$grey^ $cpu_val"
+  printf "^c$white^ ^b$grey^ ${temp}°C"
 }
 
 pkg_updates() {
-  #updates=$({ timeout 20 doas xbps-install -un 2>/dev/null || true; } | wc -l) # void
-  updates=$({ timeout 20 checkupdates 2>/dev/null || true; } | wc -l) # arch
-  # updates=$({ timeout 20 aptitude search '~U' 2>/dev/null || true; } | wc -l)  # apt (ubuntu, debian etc)
+  updates=$(apk update > /dev/null 2>&1 && apk version -l '<' | wc -l)
 
-  if [ -z "$updates" ]; then
+  if [ "$updates" -eq 0 ]; then
     printf "  ^c$green^    Fully Updated"
   else
-    printf "  ^c$green^    $updates"" updates"
+    printf "  ^c$green^    $updates updates"
   fi
 }
 
@@ -43,19 +52,18 @@ mem() {
 }
 
 wlan() {
-	case "$(cat /sys/class/net/wl*/operstate 2>/dev/null)" in
-	up) printf "^c$black^ ^b$blue^ 󰤨 ^d^%s" " ^c$blue^Connected" ;;
-	down) printf "^c$black^ ^b$blue^ 󰤭 ^d^%s" " ^c$blue^Disconnected" ;;
-	esac
+  case "$(cat /sys/class/net/wl*/operstate 2>/dev/null)" in
+    up) printf "^c$black^ ^b$blue^ 󰤨 ^d^%s" " ^c$blue^Connected" ;;
+    down) printf "^c$black^ ^b$blue^ 󰤭 ^d^%s" " ^c$blue^Disconnected" ;;
+  esac
 }
 
 clock() {
-	printf "^c$black^ ^b$darkblue^ 󱑆 "
-	printf "^c$black^^b$blue^ $(date '+%H:%M')  "
+  printf "^c$black^ ^b$darkblue^ 󱑆 "
+  printf "^c$black^^b$blue^ $(date '+%H:%M:%S')  "
 }
 
 while true; do
-
   [ $interval = 0 ] || [ $(($interval % 3600)) = 0 ] && updates=$(pkg_updates)
   interval=$((interval + 1))
 
